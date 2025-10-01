@@ -6,6 +6,7 @@
 .ipynb_checkpoints
 results/
 models/
+temp/
 **/__pycache__/
 *.py[cod]
 *$py.class
@@ -16,3 +17,4 @@ ffplay*
 debug
 exp_out
 .gradio
+api_storage

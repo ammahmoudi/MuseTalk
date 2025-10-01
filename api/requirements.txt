@@ -1,0 +1,49 @@
+# 🚀 MuseTalk Legendary API Requirements
+# Core API framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Async support
+asyncio-mqtt==0.13.0
+
+# File handling
+aiofiles==23.2.0
+
+# Validation
+pydantic==2.5.0
+
+# HTTP client
+httpx==0.25.2
+
+# Image and video processing
+opencv-python==4.9.0.80
+imageio[ffmpeg]==2.34.0
+moviepy==1.0.3
+pillow==10.1.0
+
+# Audio processing
+librosa==0.10.1
+soundfile==0.12.1
+ffmpeg-python==0.2.0
+
+# ML and Deep Learning (versions matching main requirements)
+torch==2.0.1
+torchvision==0.15.2
+torchaudio==2.0.2
+numpy==1.23.5
+scipy==1.11.4
+
+# MuseTalk specific
+diffusers==0.30.2
+transformers==4.39.2
+accelerate==0.28.0
+huggingface_hub==0.30.2
+omegaconf==2.3.0
+
+# Progress bars and utilities
+tqdm==4.66.1
+click==8.1.7
+
+# Environment and config
+python-dotenv==1.0.0

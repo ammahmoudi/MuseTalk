@@ -3,8 +3,8 @@ avator_1:
  bbox_shift: 5
  video_path: "data/video/yongen.mp4"
  audio_clips:
-     audio_0: "data/audio/yongen.wav"
-     audio_1: "data/audio/eng.wav"
+     audio_0: "temp/avatars/2e054776-92ea-4fb6-8f92-55d9eb3f7726/input_audio.m4a"
+
  
   
 
