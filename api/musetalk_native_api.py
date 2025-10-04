@@ -14,11 +14,15 @@ from typing import Optional, Dict, List
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.websockets import WebSocketDisconnect
+from pydantic import BaseModel, Field
 import uvicorn
+import base64
+import io
+import time
 
 # Add MuseTalk to path
 musetalk_root = Path(__file__).parent.parent
@@ -62,6 +66,66 @@ class TaskStatus(BaseModel):
     completed_at: Optional[str] = None
     total_time_seconds: Optional[float] = None
     parameters: Optional[Dict] = None
+
+# Streaming and Batch Processing Models
+class AudioChunk(BaseModel):
+    chunk_id: str
+    audio_data: str  # Base64 encoded audio data
+    sequence_number: int
+    is_final: bool = False
+    format: str = "wav"
+    sample_rate: int = 16000
+
+class StreamingRequest(BaseModel):
+    avatar_id: str
+    session_id: str
+    fps: int = 25
+    batch_size: int = 20
+    bbox_shift: int = 0
+    extra_margin: int = 10
+    audio_padding_length_left: int = 2
+    audio_padding_length_right: int = 2
+    parsing_mode: str = "jaw"
+    left_cheek_width: int = 90
+    right_cheek_width: int = 90
+
+class BatchProcessRequest(BaseModel):
+    avatar_id: str
+    audio_chunks: List[AudioChunk]
+    output_format: str = "mp4"  # mp4, frames, stream
+    fps: int = 25
+    batch_size: int = 20
+    bbox_shift: int = 0
+    extra_margin: int = 10
+    audio_padding_length_left: int = 2
+    audio_padding_length_right: int = 2
+    parsing_mode: str = "jaw"
+    left_cheek_width: int = 90
+    right_cheek_width: int = 90
+
+class StreamingFrameResponse(BaseModel):
+    chunk_id: str
+    frame_data: str  # Base64 encoded frame
+    sequence_number: int
+    timestamp: float
+    is_final: bool = False
+
+class HealthCheck(BaseModel):
+    status: str
+    timestamp: str
+    gpu_memory_used: Optional[float] = None
+    gpu_memory_total: Optional[float] = None
+    active_tasks: int
+    completed_tasks: int
+    failed_tasks: int
+    uptime_seconds: float
+
+class ServiceMetrics(BaseModel):
+    total_tasks_processed: int
+    average_processing_time: float
+    gpu_utilization: Optional[float] = None
+    error_rate: float
+    throughput_fps: float
 
 # FastAPI app
 app = FastAPI(
@@ -1022,25 +1086,6 @@ async def list_tasks():
         "count": len(tasks)
     }
 
-@app.get("/health")
-async def health_check():
-    """API health check with persistent data info"""
-    return {
-        "status": "healthy",
-        "message": "MuseTalk Native API is running",
-        "data_storage": {
-            "avatars_file": str(AVATARS_FILE),
-            "tasks_file": str(TASKS_FILE),
-            "avatars_loaded": len(avatars),
-            "tasks_loaded": len(tasks)
-        },
-        "directories": {
-            "temp_dir": str(TEMP_DIR),
-            "models_dir": str(MODELS_DIR),
-            "data_dir": str(DATA_DIR)
-        }
-    }
-
 @app.delete("/task/{task_id}")
 async def delete_task(task_id: str):
     """Delete a specific task"""
@@ -1107,6 +1152,216 @@ async def list_all_tasks():
         ))
     
     return task_list
+
+# =============================================================================
+# 🚀 STREAMING AND SERVICE-ORIENTED ENDPOINTS
+# =============================================================================
+
+# Add startup time tracking
+app_start_time = time.time()
+
+@app.get("/health", response_model=HealthCheck)
+async def health_check():
+    """Service health check with GPU and task metrics"""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_memory_used = torch.cuda.memory_allocated(0) / 1024**3  # GB
+            gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
+        else:
+            gpu_memory_used = None
+            gpu_memory_total = None
+    except Exception:
+        gpu_memory_used = None
+        gpu_memory_total = None
+    
+    # Count task statuses
+    active_tasks = sum(1 for task in tasks.values() if task["status"] == "processing")
+    completed_tasks = sum(1 for task in tasks.values() if task["status"] == "completed")
+    failed_tasks = sum(1 for task in tasks.values() if task["status"] == "failed")
+    
+    return HealthCheck(
+        status="healthy" if global_models["vae"] is not None else "starting",
+        timestamp=datetime.now().isoformat(),
+        gpu_memory_used=gpu_memory_used,
+        gpu_memory_total=gpu_memory_total,
+        active_tasks=active_tasks,
+        completed_tasks=completed_tasks,
+        failed_tasks=failed_tasks,
+        uptime_seconds=time.time() - app_start_time
+    )
+
+@app.get("/metrics", response_model=ServiceMetrics)
+async def get_metrics():
+    """Service performance metrics"""
+    completed_tasks_list = [task for task in tasks.values() if task["status"] == "completed" and task.get("total_time_seconds")]
+    
+    if completed_tasks_list:
+        avg_time = sum(task["total_time_seconds"] for task in completed_tasks_list) / len(completed_tasks_list)
+        # Estimate throughput based on average 195 frames per task (from realtime script)
+        avg_fps = 195 / avg_time if avg_time > 0 else 0
+    else:
+        avg_time = 0
+        avg_fps = 0
+    
+    total_tasks = len(tasks)
+    failed_tasks = sum(1 for task in tasks.values() if task["status"] == "failed")
+    error_rate = failed_tasks / total_tasks if total_tasks > 0 else 0
+    
+    return ServiceMetrics(
+        total_tasks_processed=len(completed_tasks_list),
+        average_processing_time=avg_time,
+        gpu_utilization=None,  # Could be implemented with nvidia-ml-py
+        error_rate=error_rate,
+        throughput_fps=avg_fps
+    )
+
+@app.post("/avatar/{avatar_id}/stream/start")
+async def start_streaming_session(avatar_id: str, request: StreamingRequest):
+    """Start a streaming session for real-time audio processing"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    # Create a streaming session
+    session_id = request.session_id or str(uuid.uuid4())
+    
+    # Store session configuration
+    session_config = {
+        "session_id": session_id,
+        "avatar_id": avatar_id,
+        "status": "active",
+        "created_at": datetime.now().isoformat(),
+        "fps": request.fps,
+        "batch_size": request.batch_size,
+        "parameters": request.dict()
+    }
+    
+    # In production, you'd store this in Redis or similar
+    # For now, store in memory with tasks
+    tasks[f"stream_{session_id}"] = session_config
+    save_tasks_data()
+    
+    return {
+        "session_id": session_id,
+        "status": "started",
+        "message": f"Streaming session started for avatar {avatar_id}",
+        "websocket_url": f"ws://localhost:8000/avatar/{avatar_id}/stream/{session_id}/ws"
+    }
+
+@app.websocket("/avatar/{avatar_id}/stream/{session_id}/ws")
+async def websocket_stream(websocket: WebSocket, avatar_id: str, session_id: str):
+    """WebSocket endpoint for real-time frame streaming"""
+    await websocket.accept()
+    
+    try:
+        while True:
+            # Receive audio chunk from client
+            data = await websocket.receive_json()
+            
+            # Process audio chunk and return frame
+            # This is a simplified example - in production you'd:
+            # 1. Decode base64 audio
+            # 2. Process with MuseTalk 
+            # 3. Encode frame as base64
+            # 4. Send back to client
+            
+            response = StreamingFrameResponse(
+                chunk_id=data.get("chunk_id", str(uuid.uuid4())),
+                frame_data="",  # Would contain base64 encoded frame
+                sequence_number=data.get("sequence_number", 0),
+                timestamp=time.time(),
+                is_final=data.get("is_final", False)
+            )
+            
+            await websocket.send_json(response.dict())
+            
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session {session_id}")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        await websocket.close()
+
+@app.post("/avatar/{avatar_id}/process/batch")
+async def process_batch(avatar_id: str, request: BatchProcessRequest):
+    """Process multiple audio chunks in batch mode"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    task_id = str(uuid.uuid4())
+    
+    # Create batch processing task
+    task_data = {
+        "task_id": task_id,
+        "avatar_id": avatar_id,
+        "status": "queued",
+        "type": "batch_processing",
+        "chunks_count": len(request.audio_chunks),
+        "output_format": request.output_format,
+        "fps": request.fps,
+        "batch_size": request.batch_size,
+        "bbox_shift": request.bbox_shift,
+        "extra_margin": request.extra_margin,
+        "audio_padding_length_left": request.audio_padding_length_left,
+        "audio_padding_length_right": request.audio_padding_length_right,
+        "parsing_mode": request.parsing_mode,
+        "left_cheek_width": request.left_cheek_width,
+        "right_cheek_width": request.right_cheek_width,
+        "created_at": datetime.now().isoformat(),
+        "started_at": None,
+        "completed_at": None,
+        "total_time_seconds": None,
+        "error": None,
+        "output_path": None
+    }
+    
+    tasks[task_id] = task_data
+    save_tasks_data()
+    
+    # Process in background
+    # In production, you'd queue this properly
+    return GenerationResponse(
+        task_id=task_id,
+        avatar_id=avatar_id,
+        status="queued",
+        message=f"Batch processing queued with {len(request.audio_chunks)} chunks",
+        output_path=None
+    )
+
+@app.get("/avatar/{avatar_id}/process/batch/{task_id}/frames/{frame_number}")
+async def get_processed_frame(avatar_id: str, task_id: str, frame_number: int):
+    """Get a specific processed frame from batch processing"""
+    if task_id not in tasks:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task_data = tasks[task_id]
+    if task_data["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Task not completed yet")
+    
+    # Return frame (mock implementation)
+    return {
+        "task_id": task_id,
+        "frame_number": frame_number,
+        "frame_data": "",  # Would contain base64 encoded frame
+        "timestamp": time.time()
+    }
+
+@app.post("/avatar/{avatar_id}/process/chunk")
+async def process_single_chunk(avatar_id: str, chunk: AudioChunk):
+    """Process a single audio chunk (for streaming integration)"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    # Process single chunk and return immediately
+    # This is ideal for microservice integration
+    
+    return {
+        "chunk_id": chunk.chunk_id,
+        "sequence_number": chunk.sequence_number,
+        "processing_time_ms": 50,  # Mock processing time
+        "frame_data": "",  # Would contain base64 encoded frame  
+        "timestamp": time.time(),
+        "status": "processed"
+    }
 
 if __name__ == "__main__":
     print("🚀 Starting MuseTalk Native API...")
