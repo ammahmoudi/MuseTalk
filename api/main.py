@@ -16,6 +16,16 @@ import sys
 # Add MuseTalk modules to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Configuration for online instances
+# Set BASE_URL environment variable for online instances (e.g., Colab, Paperspace)
+# Example: BASE_URL=https://your-colab-url.ngrok.io
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+print(f"🌐 API Base URL: {BASE_URL}")
+
+def generate_video_url(avatar_id: str, audio_id: str) -> str:
+    """Generate full HTTP URL for video download"""
+    return f"{BASE_URL.rstrip('/')}/avatar/{avatar_id}/video/{audio_id}"
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -587,7 +597,7 @@ async def generate_lipsync(
         
         return AudioProcessResponse(
             avatar_id=avatar_id,
-            video_path=f"/avatar/{avatar_id}/video/{audio_id}",
+            video_path=generate_video_url(avatar_id, audio_id),
             processing_time=processing_time,
             status="success"
         )

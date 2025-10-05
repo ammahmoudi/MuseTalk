@@ -9,6 +9,7 @@ import asyncio
 import shutil
 import yaml
 import json
+import os
 from pathlib import Path
 from typing import Optional, Dict, List
 from concurrent.futures import ThreadPoolExecutor
@@ -27,6 +28,16 @@ import time
 # Add MuseTalk to path
 musetalk_root = Path(__file__).parent.parent
 sys.path.append(str(musetalk_root))
+
+# Configuration for online instances
+# Set BASE_URL environment variable for online instances (e.g., Colab, Paperspace)
+# Example: BASE_URL=https://your-colab-url.ngrok.io
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+print(f"🌐 API Base URL: {BASE_URL}")
+
+def generate_download_url(task_id: str) -> str:
+    """Generate HTTP download URL for task result"""
+    return f"{BASE_URL.rstrip('/')}/task/{task_id}/download"
 
 # Global model variables (loaded once like realtime script)
 global_models = {
@@ -933,7 +944,8 @@ async def run_realtime_inference(task_id: str):
         
         if result.returncode == 0:
             tasks[task_id]["status"] = "completed"
-            tasks[task_id]["output_path"] = str(output_video)
+            tasks[task_id]["output_path"] = generate_download_url(task_id)
+            tasks[task_id]["local_path"] = str(output_video)  # Keep local path for serving
             save_tasks_data()
             print(f"✅ Real-time inference completed for task {task_id}")
             
@@ -994,7 +1006,8 @@ async def run_standard_inference(task_id: str):
         output_path = RESULTS_DIR / "v15" / f"{task_id}.mp4"
         if output_path.exists():
             tasks[task_id]["status"] = "completed"
-            tasks[task_id]["output_path"] = str(output_path)
+            tasks[task_id]["output_path"] = generate_download_url(task_id)
+            tasks[task_id]["local_path"] = str(output_path)  # Keep local path for serving
             save_tasks_data()
             print(f"✅ Standard inference completed for task {task_id}")
         else:
@@ -1060,12 +1073,13 @@ async def download_result(task_id: str):
     if task_data["status"] != "completed":
         raise HTTPException(status_code=400, detail="Task not completed")
     
-    output_path = task_data.get("output_path")
-    if not output_path or not Path(output_path).exists():
+    # Use local_path for file serving, fallback to output_path for backward compatibility
+    local_path = task_data.get("local_path") or task_data.get("output_path")
+    if not local_path or not Path(local_path).exists():
         raise HTTPException(status_code=404, detail="Output file not found")
     
     return FileResponse(
-        output_path,
+        local_path,
         media_type="video/mp4",
         filename=f"musetalk_result_{task_id}.mp4"
     )
