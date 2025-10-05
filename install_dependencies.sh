@@ -51,23 +51,23 @@ else
     exit 1
 fi
 
-# Install current project
-echo "🔧 Installing current project in editable mode..."
-if uv pip install -e .; then
-    echo "✅ Project installed in editable mode"
-else
-    echo "❌ Failed to install current project"
-    exit 1
-fi
 
 # Install OpenMIM and MMlab packages
 echo "🔧 Installing OpenMIM and MMlab packages..."
-if uv pip install openmim; then
+if uv pip install --no-cache-dir -U openmim; then
     echo "✅ OpenMIM installed"
     
-    # Install MMlab packages using mim
+    # Install MMlab packages using mim with correct versions
+    echo "🔧 Installing mmengine..."
+    if mim install mmengine; then
+        echo "✅ mmengine installed"
+    else
+        echo "❌ Failed to install mmengine"
+        exit 1
+    fi
+    
     echo "🔧 Installing MMlab packages..."
-    if mim install mmcv-full mmdet mmpose; then
+    if mim install "mmcv==2.0.1" "mmdet==3.1.0" "mmpose==1.1.0"; then
         echo "✅ MMlab packages installed"
     else
         echo "❌ Failed to install MMlab packages"
