@@ -90,44 +90,18 @@ echo 📦 Verifying key packages...
 uv pip show torch numpy fastapi gradio transformers 2>nul
 
 echo.
-REM Download models
-echo 📥 Downloading required models...
-echo 🔧 Creating models directory...
-if not exist "models" mkdir models
-
-REM Download MuseTalk models
+REM Download models using official script
 echo 📥 Downloading MuseTalk models...
 if exist "download_weights.bat" (
-    echo 🔧 Running download_weights.bat...
     call download_weights.bat
     if errorlevel 1 (
-        echo ❌ Failed to download MuseTalk models
-        echo 💡 You can run 'download_weights.bat' manually later
+        echo ⚠️ Some models may have failed to download. Check manually if needed.
     ) else (
-        echo ✅ MuseTalk models downloaded
+        echo ✅ Models downloaded successfully!
     )
 ) else (
-    echo ❌ download_weights.bat not found
-    echo 💡 Please download models manually or check the repository
+    echo ⚠️ download_weights.bat not found. Please download models manually.
 )
-
-REM Download face detection and pose models
-echo 📥 Downloading additional models...
-python -c "
-try:
-    import gdown
-    import os
-    os.makedirs('models/face_detection', exist_ok=True)
-    os.makedirs('models/dwpose', exist_ok=True)
-    print('📥 Downloading face detection models...')
-    gdown.download('https://drive.google.com/uc?id=1FWJOICz8tu5Q5z9A48OUWuFT5r6gI9VV', 'models/face_detection/s3fd.pth', quiet=False)
-    print('📥 Downloading DWPose models...')
-    gdown.download('https://drive.google.com/uc?id=1bqJEy6u2y0pP-L0IaosuDFy9w9cu_P-2', 'models/dwpose/dw-ll_ucoco_384.pth', quiet=False)
-    print('✅ Additional models downloaded')
-except Exception as e:
-    print(f'❌ Failed to download some models: {e}')
-    print('💡 You may need to download them manually')
-"
 
 echo.
 echo 🏁 Installation completed!

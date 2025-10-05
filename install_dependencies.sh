@@ -1,6 +1,6 @@
 #!/bin/bash
 # MuseTalk Dependencies Installation Script
-# This script installs all required dependencies using uv pip install
+# This script installs all required dependencies using UV package manager
 
 set -e  # Exit on any error
 
@@ -107,56 +107,18 @@ for package in torch numpy fastapi gradio transformers; do
 done
 
 echo
-# Download models
-echo "📥 Downloading required models..."
-echo "🔧 Creating models directory..."
-mkdir -p models
-
-# Download MuseTalk models
+# Download models using official script
 echo "📥 Downloading MuseTalk models..."
 if [ -f "download_weights.sh" ]; then
-    echo "🔧 Running download_weights.sh..."
     chmod +x download_weights.sh
     if ./download_weights.sh; then
-        echo "✅ MuseTalk models downloaded"
+        echo "✅ Models downloaded successfully!"
     else
-        echo "❌ Failed to download MuseTalk models"
-        echo "💡 You can run './download_weights.sh' manually later"
+        echo "⚠️ Some models may have failed to download. Check manually if needed."
     fi
 else
-    echo "❌ download_weights.sh not found"
-    echo "💡 Please download models manually or check the repository"
+    echo "⚠️ download_weights.sh not found. Please download models manually."
 fi
-
-# Download face detection models
-echo "📥 Downloading face detection models..."
-python -c "
-try:
-    import gdown
-    import os
-    os.makedirs('models/face_detection', exist_ok=True)
-    # Download S3FD face detection model
-    gdown.download('https://drive.google.com/uc?id=1FWJOICz8tu5Q5z9A48OUWuFT5r6gI9VV', 'models/face_detection/s3fd.pth')
-    print('✅ Face detection models downloaded')
-except Exception as e:
-    print(f'❌ Failed to download face detection models: {e}')
-    print('💡 You may need to download them manually')
-"
-
-# Download DWPose models
-echo "📥 Downloading DWPose models..."
-python -c "
-try:
-    import gdown
-    import os
-    os.makedirs('models/dwpose', exist_ok=True)
-    # Download DWPose model
-    gdown.download('https://drive.google.com/uc?id=1bqJEy6u2y0pP-L0IaosuDFy9w9cu_P-2', 'models/dwpose/dw-ll_ucoco_384.pth')
-    print('✅ DWPose models downloaded')
-except Exception as e:
-    print(f'❌ Failed to download DWPose models: {e}')
-    print('💡 You may need to download them manually')
-"
 
 echo
 echo "🏁 Installation completed!"
