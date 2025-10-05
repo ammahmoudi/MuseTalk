@@ -39,6 +39,14 @@ def generate_download_url(task_id: str) -> str:
     """Generate HTTP download URL for task result"""
     return f"{BASE_URL.rstrip('/')}/task/{task_id}/download"
 
+def generate_steady_state_url(avatar_id: str) -> str:
+    """Generate HTTP URL for avatar steady state video"""
+    return f"{BASE_URL.rstrip('/')}/avatar/{avatar_id}/steady-state"
+
+def generate_thumbnail_url(avatar_id: str) -> str:
+    """Generate HTTP URL for avatar thumbnail image"""
+    return f"{BASE_URL.rstrip('/')}/avatar/{avatar_id}/thumbnail"
+
 # Global model variables (loaded once like realtime script)
 global_models = {
     "vae": None,
@@ -58,6 +66,8 @@ class AvatarResponse(BaseModel):
     status: str
     message: str
     preprocessing_time: Optional[float] = None
+    steady_state_video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 class GenerationResponse(BaseModel):
     task_id: str
@@ -77,6 +87,17 @@ class TaskStatus(BaseModel):
     completed_at: Optional[str] = None
     total_time_seconds: Optional[float] = None
     parameters: Optional[Dict] = None
+
+class AvatarInfo(BaseModel):
+    avatar_id: str
+    name: Optional[str] = None
+    status: str
+    created_at: str
+    video_path: str
+    steady_state_video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    frame_count: Optional[int] = None
+    bbox_shift: int = 0
 
 # Streaming and Batch Processing Models
 class AudioChunk(BaseModel):
@@ -422,13 +443,17 @@ async def prepare_avatar(
     with open(video_path, "wb") as f:
         shutil.copyfileobj(video.file, f)
     
-    # Store avatar info
+    # Store avatar info with new fields
     avatars[avatar_id] = {
         "status": "preprocessing",
         "video_path": str(video_path),
         "bbox_shift": bbox_shift,
         "avatar_dir": str(avatar_dir),
-        "created_at": str(asyncio.get_event_loop().time())
+        "created_at": str(asyncio.get_event_loop().time()),
+        "name": Path(video.filename).stem,  # Use filename as default name
+        "steady_state_video_path": None,
+        "thumbnail_path": None,
+        "frame_count": None
     }
     
     # Save avatars data persistently
@@ -440,7 +465,9 @@ async def prepare_avatar(
     return AvatarResponse(
         avatar_id=avatar_id,
         status="preparing", 
-        message="Avatar preparation started for inference (frame extraction + landmark detection)"
+        message="Avatar preparation started for inference (frame extraction + landmark detection)",
+        steady_state_video_url=generate_steady_state_url(avatar_id) if avatars[avatar_id].get("steady_state_video_path") else None,
+        thumbnail_url=generate_thumbnail_url(avatar_id) if avatars[avatar_id].get("thumbnail_path") else None
     )
 
 async def run_preprocessing(avatar_id: str):
@@ -614,6 +641,10 @@ async def run_preprocessing(avatar_id: str):
         avatars[avatar_id]["preprocessed"] = True
         avatars[avatar_id]["fps"] = fps
         avatars[avatar_id]["frame_count"] = len(coord_list)
+        
+        # Auto-generate thumbnail if not exists
+        if not avatars[avatar_id].get("thumbnail_path"):
+            await generate_thumbnail_from_video(avatar_id)
         
         # Save avatars data persistently
         save_avatars_data()
@@ -1020,13 +1051,162 @@ async def run_standard_inference(task_id: str):
         save_tasks_data()
         print(f"💥 Standard inference failed for task {task_id}: {result.stderr}")
 
-@app.get("/avatar/{avatar_id}/status")
-async def get_avatar_status(avatar_id: str):
-    """Get avatar preparation status"""
+@app.post("/avatar/{avatar_id}/steady-state")
+async def upload_steady_state_video(
+    avatar_id: str,
+    video: UploadFile = File(..., description="Steady state video for avatar")
+):
+    """Upload steady state video for avatar"""
     if avatar_id not in avatars:
         raise HTTPException(status_code=404, detail="Avatar not found")
     
-    return avatars[avatar_id]
+    # Validate video file
+    if not video.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        raise HTTPException(status_code=400, detail="Invalid video format")
+    
+    try:
+        avatar_data = avatars[avatar_id]
+        avatar_dir = Path(avatar_data["avatar_dir"])
+        
+        # Save steady state video
+        steady_state_path = avatar_dir / f"steady_state{Path(video.filename).suffix}"
+        with open(steady_state_path, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+        
+        # Update avatar data
+        avatars[avatar_id]["steady_state_video_path"] = str(steady_state_path)
+        save_avatars_data()
+        
+        return {
+            "message": "Steady state video uploaded successfully",
+            "steady_state_video_url": generate_steady_state_url(avatar_id)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload steady state video: {str(e)}")
+
+@app.get("/avatar/{avatar_id}/steady-state")
+async def get_steady_state_video(avatar_id: str):
+    """Download steady state video for avatar"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    avatar_data = avatars[avatar_id]
+    steady_state_path = avatar_data.get("steady_state_video_path")
+    
+    if not steady_state_path or not Path(steady_state_path).exists():
+        raise HTTPException(status_code=404, detail="Steady state video not found")
+    
+    return FileResponse(
+        steady_state_path,
+        media_type="video/mp4",
+        filename=f"steady_state_{avatar_id}.mp4"
+    )
+
+@app.post("/avatar/{avatar_id}/thumbnail")
+async def upload_thumbnail(
+    avatar_id: str,
+    image: UploadFile = File(..., description="Thumbnail image for avatar")
+):
+    """Upload thumbnail image for avatar"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    # Validate image file
+    if not image.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp')):
+        raise HTTPException(status_code=400, detail="Invalid image format")
+    
+    try:
+        avatar_data = avatars[avatar_id]
+        avatar_dir = Path(avatar_data["avatar_dir"])
+        
+        # Save thumbnail
+        thumbnail_path = avatar_dir / f"thumbnail{Path(image.filename).suffix}"
+        with open(thumbnail_path, "wb") as f:
+            shutil.copyfileobj(image.file, f)
+        
+        # Update avatar data
+        avatars[avatar_id]["thumbnail_path"] = str(thumbnail_path)
+        save_avatars_data()
+        
+        return {
+            "message": "Thumbnail uploaded successfully",
+            "thumbnail_url": generate_thumbnail_url(avatar_id)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload thumbnail: {str(e)}")
+
+@app.get("/avatar/{avatar_id}/thumbnail")
+async def get_thumbnail(avatar_id: str):
+    """Download thumbnail image for avatar"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    avatar_data = avatars[avatar_id]
+    thumbnail_path = avatar_data.get("thumbnail_path")
+    
+    if not thumbnail_path or not Path(thumbnail_path).exists():
+        # Try to generate thumbnail from video if not exists
+        await generate_thumbnail_from_video(avatar_id)
+        thumbnail_path = avatars[avatar_id].get("thumbnail_path")
+        
+        if not thumbnail_path or not Path(thumbnail_path).exists():
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+    
+    return FileResponse(
+        thumbnail_path,
+        media_type="image/jpeg",
+        filename=f"thumbnail_{avatar_id}.jpg"
+    )
+
+async def generate_thumbnail_from_video(avatar_id: str):
+    """Auto-generate thumbnail from avatar video"""
+    try:
+        avatar_data = avatars[avatar_id]
+        video_path = avatar_data["video_path"]
+        avatar_dir = Path(avatar_data["avatar_dir"])
+        
+        # Extract first frame as thumbnail using cv2
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        ret, frame = cap.read()
+        cap.release()
+        
+        if ret:
+            thumbnail_path = avatar_dir / "thumbnail.jpg"
+            cv2.imwrite(str(thumbnail_path), frame)
+            
+            # Update avatar data
+            avatars[avatar_id]["thumbnail_path"] = str(thumbnail_path)
+            save_avatars_data()
+            
+            print(f"✅ Generated thumbnail for avatar {avatar_id}")
+        else:
+            print(f"⚠️ Failed to extract frame from video for avatar {avatar_id}")
+            
+    except Exception as e:
+        print(f"⚠️ Failed to generate thumbnail for avatar {avatar_id}: {e}")
+
+@app.get("/avatar/{avatar_id}/status", response_model=AvatarInfo)
+async def get_avatar_status(avatar_id: str):
+    """Get avatar preparation status with media URLs"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    avatar_data = avatars[avatar_id]
+    
+    return AvatarInfo(
+        avatar_id=avatar_id,
+        name=avatar_data.get("name", "Unknown"),
+        status=avatar_data["status"],
+        created_at=avatar_data.get("created_at", ""),
+        video_path=avatar_data["video_path"],
+        steady_state_video_url=generate_steady_state_url(avatar_id) if avatar_data.get("steady_state_video_path") else None,
+        thumbnail_url=generate_thumbnail_url(avatar_id) if avatar_data.get("thumbnail_path") else None,
+        frame_count=avatar_data.get("frame_count"),
+        bbox_shift=avatar_data.get("bbox_shift", 0)
+    )
 
 @app.get("/task/{task_id}/status", response_model=TaskStatus)
 async def get_task_status(task_id: str):
@@ -1086,10 +1266,28 @@ async def download_result(task_id: str):
 
 @app.get("/avatars")
 async def list_avatars():
-    """List all avatars with their status"""
+    """List all avatars with their status and media URLs"""
+    avatar_list = []
+    
+    for avatar_id, avatar_data in avatars.items():
+        avatar_info = {
+            "avatar_id": avatar_id,
+            "name": avatar_data.get("name", "Unknown"),
+            "status": avatar_data["status"],
+            "created_at": avatar_data.get("created_at", ""),
+            "video_path": avatar_data["video_path"],
+            "steady_state_video_url": generate_steady_state_url(avatar_id) if avatar_data.get("steady_state_video_path") else None,
+            "thumbnail_url": generate_thumbnail_url(avatar_id) if avatar_data.get("thumbnail_path") else None,
+            "frame_count": avatar_data.get("frame_count"),
+            "bbox_shift": avatar_data.get("bbox_shift", 0),
+            "has_steady_state": bool(avatar_data.get("steady_state_video_path")),
+            "has_thumbnail": bool(avatar_data.get("thumbnail_path"))
+        }
+        avatar_list.append(avatar_info)
+    
     return {
-        "avatars": avatars,
-        "count": len(avatars)
+        "avatars": avatar_list,
+        "count": len(avatar_list)
     }
 
 @app.get("/tasks")
