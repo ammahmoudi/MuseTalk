@@ -47,6 +47,10 @@ def generate_thumbnail_url(avatar_id: str) -> str:
     """Generate HTTP URL for avatar thumbnail image"""
     return f"{BASE_URL.rstrip('/')}/avatar/{avatar_id}/thumbnail"
 
+def generate_avatar_video_url(avatar_id: str) -> str:
+    """Generate HTTP URL for original avatar video"""
+    return f"{BASE_URL.rstrip('/')}/avatar/{avatar_id}/video"
+
 # Global model variables (loaded once like realtime script)
 global_models = {
     "vae": None,
@@ -93,7 +97,7 @@ class AvatarInfo(BaseModel):
     name: Optional[str] = None
     status: str
     created_at: str
-    video_path: str
+    video_url: str  # Changed from video_path to video_url for HTTP access
     steady_state_video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     frame_count: Optional[int] = None
@@ -1137,6 +1141,24 @@ async def upload_thumbnail(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload thumbnail: {str(e)}")
 
+@app.get("/avatar/{avatar_id}/video")
+async def get_avatar_video(avatar_id: str):
+    """Download original avatar video"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    avatar_data = avatars[avatar_id]
+    video_path = avatar_data.get("video_path")
+    
+    if not video_path or not Path(video_path).exists():
+        raise HTTPException(status_code=404, detail="Avatar video not found")
+    
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=f"avatar_{avatar_id}.mp4"
+    )
+
 @app.get("/avatar/{avatar_id}/thumbnail")
 async def get_thumbnail(avatar_id: str):
     """Download thumbnail image for avatar"""
@@ -1201,7 +1223,7 @@ async def get_avatar_status(avatar_id: str):
         name=avatar_data.get("name", "Unknown"),
         status=avatar_data["status"],
         created_at=avatar_data.get("created_at", ""),
-        video_path=avatar_data["video_path"],
+        video_url=generate_avatar_video_url(avatar_id),  # Use HTTP URL
         steady_state_video_url=generate_steady_state_url(avatar_id) if avatar_data.get("steady_state_video_path") else None,
         thumbnail_url=generate_thumbnail_url(avatar_id) if avatar_data.get("thumbnail_path") else None,
         frame_count=avatar_data.get("frame_count"),
@@ -1275,7 +1297,7 @@ async def list_avatars():
             "name": avatar_data.get("name", "Unknown"),
             "status": avatar_data["status"],
             "created_at": avatar_data.get("created_at", ""),
-            "video_path": avatar_data["video_path"],
+            "video_url": generate_avatar_video_url(avatar_id),  # Use HTTP URL
             "steady_state_video_url": generate_steady_state_url(avatar_id) if avatar_data.get("steady_state_video_path") else None,
             "thumbnail_url": generate_thumbnail_url(avatar_id) if avatar_data.get("thumbnail_path") else None,
             "frame_count": avatar_data.get("frame_count"),
