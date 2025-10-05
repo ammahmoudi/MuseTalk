@@ -222,7 +222,7 @@ async def load_global_models():
 # Global storage for tasks and avatars
 tasks: Dict[str, Dict] = {}
 avatars: Dict[str, Dict] = {}
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=1)
 
 # Paths
 TEMP_DIR = musetalk_root / "temp"
