@@ -1089,6 +1089,32 @@ async def upload_steady_state_video(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload steady state video: {str(e)}")
 
+@app.get("/avatar/{avatar_id}/debug")
+async def debug_avatar(avatar_id: str):
+    """Debug endpoint to check avatar data and files"""
+    if avatar_id not in avatars:
+        return {"error": "Avatar not found", "avatar_id": avatar_id, "available_avatars": list(avatars.keys())}
+    
+    avatar_data = avatars[avatar_id]
+    avatar_dir = Path(avatar_data.get("avatar_dir", ""))
+    
+    debug_info = {
+        "avatar_id": avatar_id,
+        "avatar_exists": True,
+        "avatar_data": avatar_data,
+        "files_check": {
+            "avatar_dir_exists": avatar_dir.exists() if avatar_dir else False,
+            "video_path_exists": Path(avatar_data.get("video_path", "")).exists() if avatar_data.get("video_path") else False,
+            "steady_state_path": avatar_data.get("steady_state_video_path"),
+            "steady_state_exists": Path(avatar_data.get("steady_state_video_path", "")).exists() if avatar_data.get("steady_state_video_path") else False,
+            "thumbnail_path": avatar_data.get("thumbnail_path"),
+            "thumbnail_exists": Path(avatar_data.get("thumbnail_path", "")).exists() if avatar_data.get("thumbnail_path") else False,
+        },
+        "directory_contents": list(avatar_dir.iterdir()) if avatar_dir and avatar_dir.exists() else []
+    }
+    
+    return debug_info
+
 @app.get("/avatar/{avatar_id}/steady-state")
 async def get_steady_state_video(avatar_id: str):
     """Download steady state video for avatar"""
@@ -1098,8 +1124,11 @@ async def get_steady_state_video(avatar_id: str):
     avatar_data = avatars[avatar_id]
     steady_state_path = avatar_data.get("steady_state_video_path")
     
-    if not steady_state_path or not Path(steady_state_path).exists():
-        raise HTTPException(status_code=404, detail="Steady state video not found")
+    if not steady_state_path:
+        raise HTTPException(status_code=404, detail=f"No steady state video uploaded for avatar {avatar_id}. Use POST /avatar/{avatar_id}/steady-state to upload one.")
+    
+    if not Path(steady_state_path).exists():
+        raise HTTPException(status_code=404, detail=f"Steady state video file missing: {steady_state_path}")
     
     return FileResponse(
         steady_state_path,
@@ -1209,6 +1238,34 @@ async def generate_thumbnail_from_video(avatar_id: str):
             
     except Exception as e:
         print(f"⚠️ Failed to generate thumbnail for avatar {avatar_id}: {e}")
+
+@app.get("/avatar/{avatar_id}/debug")
+async def debug_avatar(avatar_id: str):
+    """Debug endpoint to check avatar files and paths"""
+    if avatar_id not in avatars:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    avatar_data = avatars[avatar_id]
+    avatar_dir = Path(avatar_data["avatar_dir"])
+    
+    debug_info = {
+        "avatar_id": avatar_id,
+        "avatar_data": avatar_data,
+        "avatar_dir_exists": avatar_dir.exists(),
+        "files_in_dir": list(str(f) for f in avatar_dir.iterdir()) if avatar_dir.exists() else [],
+        "video_path_exists": Path(avatar_data["video_path"]).exists() if avatar_data.get("video_path") else False,
+        "steady_state_path": avatar_data.get("steady_state_video_path"),
+        "steady_state_exists": Path(avatar_data["steady_state_video_path"]).exists() if avatar_data.get("steady_state_video_path") else False,
+        "thumbnail_path": avatar_data.get("thumbnail_path"),
+        "thumbnail_exists": Path(avatar_data["thumbnail_path"]).exists() if avatar_data.get("thumbnail_path") else False,
+        "generated_urls": {
+            "video_url": generate_avatar_video_url(avatar_id),
+            "steady_state_url": generate_steady_state_url(avatar_id),
+            "thumbnail_url": generate_thumbnail_url(avatar_id)
+        }
+    }
+    
+    return debug_info
 
 @app.get("/avatar/{avatar_id}/status", response_model=AvatarInfo)
 async def get_avatar_status(avatar_id: str):
