@@ -1,0 +1,41 @@
+# 🚀 MuseTalk Production Override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+version: '3.8'
+
+services:
+  musetalk-api:
+    profiles: [""]  # Always enabled in production
+    build:
+      target: runtime
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - LOG_LEVEL=info
+      - WORKERS=1
+
+  nginx:
+    profiles: [""]  # Always enabled in production
+    environment:
+      - NGINX_WORKER_PROCESSES=auto
+      - NGINX_WORKER_CONNECTIONS=1024
+
+  redis:
+    profiles: [""]  # Always enabled in production
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  file-server:
+    profiles: [""]  # Always enabled in production

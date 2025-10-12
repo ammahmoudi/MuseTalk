@@ -1,0 +1,23 @@
+# 🚀 MuseTalk Development Override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+version: '3.8'
+
+services:
+  musetalk-mock-api:
+    profiles: [""]  # Always enabled in dev
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./api:/app:ro  # Mount source for hot reload
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    command: ["python", "-m", "uvicorn", "mock_api:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+
+  redis:
+    profiles: [""]  # Always enabled in dev
+    ports:
+      - "6379:6379"
+
+# Enable hot reload for development
+# Note: Real MuseTalk API requires models to be downloaded first

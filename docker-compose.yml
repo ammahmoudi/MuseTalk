@@ -1,68 +1,142 @@
-# 🚀 MuseTalk Legendary API Docker Compose
+# 🚀 MuseTalk API Services Docker Compose
+# Supports both real MuseTalk API and Mock API for development/testing
 version: '3.8'
 
 services:
+  # Real MuseTalk API with GPU support
   musetalk-api:
     build: 
       context: .
-      dockerfile: api/Dockerfile
-    container_name: musetalk-legendary-api
+      dockerfile: api/Dockerfile.prod
+      target: ${MUSETALK_BUILD_TARGET:-runtime}
+    container_name: musetalk-api
     ports:
-      - "8000:8000"
+      - "${MUSETALK_API_PORT:-8000}:8000"
     volumes:
-      - ./models:/app/models:ro  # Read-only models
-      - ./data:/app/data:ro      # Read-only test data
-      - ./temp:/app/temp         # Temporary files
-      - ./results:/app/results   # Generated results
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+      - musetalk_temp:/app/temp
+      - musetalk_results:/app/results
     environment:
-      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
       - PYTHONPATH=/app
-      - TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6"
+      - BASE_URL=${MUSETALK_BASE_URL:-http://localhost:8000}
+      - TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST:-6.0;6.1;7.0;7.5;8.0;8.6}
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: ${GPU_COUNT:-1}
               capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
+    networks:
+      - musetalk-network
+    profiles: ["gpu", "production", "full"]
+
+  # Mock API for development/testing (no GPU required)
+  musetalk-mock-api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile.mock
+    container_name: musetalk-mock-api
+    ports:
+      - "${MOCK_API_PORT:-8001}:8001"
+    volumes:
+      - mock_temp:/app/temp
+      - ./test_assets:/app/test_assets:ro
+    environment:
+      - PYTHONPATH=/app
+      - BASE_URL=${MOCK_BASE_URL:-http://localhost:8001}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 30s
+    networks:
+      - musetalk-network
+    profiles: ["dev", "mock", "testing", "full"]
 
-  # Optional: Redis for caching (future enhancement)
+  # Redis for caching and session management
   redis:
     image: redis:7-alpine
     container_name: musetalk-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
-    profiles: ["with-cache"]
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - musetalk-network
+    profiles: ["cache", "production", "full"]
 
-  # Optional: Nginx reverse proxy (production)
+  # Nginx reverse proxy for production
   nginx:
     image: nginx:alpine
     container_name: musetalk-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
     depends_on:
       - musetalk-api
     restart: unless-stopped
-    profiles: ["production"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - musetalk-network
+    profiles: ["production", "proxy"]
+
+  # File server for serving generated content
+  file-server:
+    image: nginx:alpine
+    container_name: musetalk-files
+    ports:
+      - "${FILE_SERVER_PORT:-8080}:80"
+    volumes:
+      - musetalk_results:/usr/share/nginx/html/results:ro
+      - musetalk_temp:/usr/share/nginx/html/temp:ro
+      - ./nginx/file-server.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    networks:
+      - musetalk-network
+    profiles: ["files", "production", "full"]
 
 volumes:
+  musetalk_temp:
+    driver: local
+  musetalk_results:
+    driver: local
+  mock_temp:
+    driver: local
   redis_data:
+    driver: local
+  nginx_logs:
     driver: local
 
 networks:
-  default:
-    name: musetalk-network
+  musetalk-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
