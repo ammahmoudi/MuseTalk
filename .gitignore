@@ -19,3 +19,4 @@ exp_out
 .gradio
 api_storage
 test_assets
+.env
