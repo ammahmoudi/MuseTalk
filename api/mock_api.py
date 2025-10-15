@@ -59,7 +59,7 @@ class AvatarInfo(BaseModel):
 
 # Configuration
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:8001')  # Different port for mock
-TEST_ASSETS_DIR = Path(__file__).parent.parent / "test_assets"  # Go up one level to root
+TEST_ASSETS_DIR = Path(os.getenv('TEST_ASSETS_DIR', str(Path(__file__).parent.parent / "test_assets")))
 
 print(f"🎭 Mock API Base URL: {BASE_URL}")
 print(f"📁 Test Assets Directory: {TEST_ASSETS_DIR}")
