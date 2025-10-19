@@ -58,7 +58,7 @@ class AvatarInfo(BaseModel):
     bbox_shift: int = 0
 
 # Configuration
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8001')  # Different port for mock
+BASE_URL = os.getenv('MOCK_BASE_URL', os.getenv('BASE_URL', 'https://ai-icon.rastar.dev/mock'))  # Use production URL by default
 TEST_ASSETS_DIR = Path(os.getenv('TEST_ASSETS_DIR', str(Path(__file__).parent.parent / "test_assets")))
 
 print(f"🎭 Mock API Base URL: {BASE_URL}")
@@ -583,7 +583,25 @@ async def get_avatar_status(avatar_id: str):
 async def get_task_status(task_id: str):
     """Get mock task status"""
     if task_id not in mock_tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
+        # Try to load from saved tasks file
+        tasks_file = Path("data/api_storage/tasks.json")
+        if tasks_file.exists():
+            try:
+                import json
+                with open(tasks_file, 'r') as f:
+                    saved_tasks = json.load(f)
+                if task_id in saved_tasks:
+                    task_data = saved_tasks[task_id]
+                    # Fix URL format for old tasks
+                    if task_data.get("output_path") and "localhost" in task_data.get("output_path", ""):
+                        task_data["download_url"] = generate_download_url(task_id)
+                    mock_tasks[task_id] = task_data  # Cache in memory
+                else:
+                    raise HTTPException(status_code=404, detail="Task not found")
+            except (json.JSONDecodeError, FileNotFoundError):
+                raise HTTPException(status_code=404, detail="Task not found")
+        else:
+            raise HTTPException(status_code=404, detail="Task not found")
     
     task_data = mock_tasks[task_id]
     
