@@ -58,8 +58,33 @@ class AvatarInfo(BaseModel):
     bbox_shift: int = 0
 
 # Configuration
-BASE_URL = os.getenv('MOCK_BASE_URL', os.getenv('BASE_URL', 'https://ai-icon.rastar.dev/mock'))  # Use production URL by default
-TEST_ASSETS_DIR = Path(os.getenv('TEST_ASSETS_DIR', str(Path(__file__).parent.parent / "test_assets")))
+BASE_URL = os.getenv('MOCK_BASE_URL', os.getenv('BASE_URL', 'https://ai-icon.rastar.dev'))  # Use production URL by default
+# Determine test assets directory dynamically
+def get_test_assets_dir():
+    """Find test_assets directory relative to the current working directory or script location"""
+    # Try environment variable first
+    if 'TEST_ASSETS_DIR' in os.environ:
+        return Path(os.environ['TEST_ASSETS_DIR'])
+    
+    # Try relative to current working directory (for Docker)
+    cwd_test_assets = Path.cwd() / "test_assets"
+    if cwd_test_assets.exists():
+        return cwd_test_assets
+    
+    # Try relative to script location
+    script_test_assets = Path(__file__).parent / "test_assets"
+    if script_test_assets.exists():
+        return script_test_assets
+    
+    # Try parent directory (for cases where script is in api/ subdirectory)
+    parent_test_assets = Path(__file__).parent.parent / "test_assets"
+    if parent_test_assets.exists():
+        return parent_test_assets
+    
+    # Default fallback to cwd
+    return Path.cwd() / "test_assets"
+
+TEST_ASSETS_DIR = get_test_assets_dir()
 
 print(f"🎭 Mock API Base URL: {BASE_URL}")
 print(f"📁 Test Assets Directory: {TEST_ASSETS_DIR}")
