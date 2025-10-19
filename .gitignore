@@ -19,4 +19,9 @@ exp_out
 .gradio
 api_storage
 test_assets
+
+# Environment files
 .env
+.env.dev
+.env.local
+.env.production

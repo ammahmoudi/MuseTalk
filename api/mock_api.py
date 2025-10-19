@@ -13,6 +13,15 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 import random
 
+# Load environment variables - prioritize .env.local over .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv(".env.local", override=True)  # Load local overrides first
+    load_dotenv(".env")  # Then load defaults (won't override existing vars)
+except ImportError:
+    print("⚠️ python-dotenv not installed - using system environment variables only")
+    pass
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse

@@ -13,7 +13,7 @@ from pathlib import Path
 
 # Mock API Configuration
 MOCK_API_BASE = "http://localhost:8001"
-TEST_ASSETS = Path("test_assets")
+TEST_ASSETS = Path(__file__).parent.parent / "test_assets"
 
 def test_mock_api():
     """Test the mock API functionality"""

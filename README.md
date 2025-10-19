@@ -147,6 +147,37 @@ We also hope you note that we have not verified, maintained, or updated third-pa
 ## Installation
 To prepare the Python environment and install additional packages such as opencv, diffusers, mmcv, etc., please follow the steps below:
 
+## Installation
+
+### Docker Setup (Recommended)
+
+For easy setup with the Humaan ecosystem, use Docker:
+
+```bash
+# Clone the repositories
+git clone https://github.com/Rastarmaan/Humaan-back.git
+git clone https://github.com/Rastarmaan/Humaan-front.git  
+git clone https://github.com/ammahmoudi/MuseTalk.git
+
+# Production mode
+cd Humaan-back/docker
+docker-compose up -d
+
+# Development mode (localhost URLs)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+#### Environment Configuration
+- **Production**: Uses `.env` with production URLs
+- **Development**: Uses `.env.dev` with localhost URLs
+
+| Mode | MuseTalk Real API | MuseTalk Mock API |
+|------|-------------------|-------------------|
+| Production | <https://ai-icon.rastar.dev> | <https://ai-icon.rastar.dev/mock> |
+| Development | <http://localhost:8000> | <http://localhost:8001> |
+
+### Manual Installation
+
 ### Build environment
 We recommend Python 3.10 and CUDA 11.7. Set up your environment as follows:
 

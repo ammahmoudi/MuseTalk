@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"
-TEST_AUDIO_FILE = "data/audio/yongen.wav"  # Use existing test audio
+TEST_AUDIO_FILE = str(Path(__file__).parent.parent / "data" / "audio" / "yongen.wav")  # Use existing test audio
 AVATAR_ID = None  # Will be set when we find an existing avatar
 
 async def test_health_check():
