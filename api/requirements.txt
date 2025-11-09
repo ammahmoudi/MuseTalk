@@ -30,10 +30,12 @@ librosa==0.10.1
 soundfile==0.12.1
 ffmpeg-python==0.2.0
 
-# ML and Deep Learning (versions matching main requirements)
-torch==2.0.1
-torchvision==0.15.2
-torchaudio==2.0.2
+# ML and Deep Learning
+# Note: PyTorch should be installed first with CUDA support
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
 numpy==1.23.5
 scipy==1.11.4
 

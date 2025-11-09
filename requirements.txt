@@ -1,8 +1,5 @@
-# PyTorch with CUDA 13.0 support
---index-url https://download.pytorch.org/whl/cu130
-torch>=2.0.0
-torchvision>=0.15.0
-torchaudio>=2.0.0
+# PyTorch with CUDA 13.0 support - Install separately first:
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
 # Core dependencies
 diffusers==0.30.2
@@ -26,4 +23,9 @@ omegaconf
 ffmpeg-python
 moviepy
 pyyaml
+psutil
+gputil
+
+# Note: MMLab packages (mmpose, mmcv, mmdet, mmengine) should be installed separately
+# See README.md for installation instructions
 

@@ -1,10 +1,13 @@
 #!/bin/bash
-# MuseTalk Dependencies Installation Script
-# This script installs all required dependencies using UV package manager
+# MuseTalk Dependencies Installation Script for Linux/Mac
+# This script installs all required dependencies using uv pip install
 
-set -e  # Exit on any error
+set -e  # Exit on error
 
-echo "🚀 MuseTalk Dependencies Installation"
+# Set longer timeout for downloads (5 minutes)
+export UV_HTTP_TIMEOUT=300
+
+echo "🚀 MuseTalk Dependencies Installation (Linux/Mac)"
 echo "=================================================="
 
 # Check if uv is installed
@@ -33,6 +36,15 @@ echo "   • Main: requirements.txt"
 echo "   • API:  api/requirements.txt"
 echo
 
+# Install PyTorch with CUDA first
+echo "🔥 Installing PyTorch with CUDA 13.0..."
+if uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130; then
+    echo "✅ PyTorch with CUDA installed"
+else
+    echo "❌ Failed to install PyTorch"
+    exit 1
+fi
+
 # Install main requirements
 echo "🔧 Installing main requirements.txt..."
 if uv pip install -r requirements.txt; then
@@ -51,15 +63,23 @@ else
     exit 1
 fi
 
+# Pre-install numpy and pandas to avoid timeout issues with OpenMIM
+echo "🔧 Pre-installing numpy and pandas..."
+if uv pip install numpy pandas; then
+    echo "✅ numpy and pandas installed"
+else
+    echo "⚠️ Warning: Failed to pre-install numpy/pandas, continuing anyway..."
+fi
 
 # Install OpenMIM and MMlab packages
 echo "🔧 Installing OpenMIM and MMlab packages..."
+echo "⏱️ Using 5-minute timeout for large downloads..."
 if uv pip install --no-cache-dir -U openmim; then
     echo "✅ OpenMIM installed"
     
     # Install MMlab packages using mim with correct versions
     echo "🔧 Installing mmengine..."
-    if mim install mmengine; then
+    if uv run python -m mim install mmengine; then
         echo "✅ mmengine installed"
     else
         echo "❌ Failed to install mmengine"
@@ -67,7 +87,7 @@ if uv pip install --no-cache-dir -U openmim; then
     fi
     
     echo "🔧 Installing MMlab packages..."
-    if mim install "mmcv==2.0.1" "mmdet==3.1.0" "mmpose==1.1.0"; then
+    if uv run python -m mim install "mmcv==2.0.1" "mmdet==3.1.0" "mmpose==1.1.0"; then
         echo "✅ MMlab packages installed"
     else
         echo "❌ Failed to install MMlab packages"

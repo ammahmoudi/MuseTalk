@@ -5,6 +5,9 @@ REM This script installs all required dependencies using uv pip install
 echo 🚀 MuseTalk Dependencies Installation (Windows)
 echo ==================================================
 
+REM Set longer timeout for downloads (5 minutes)
+set UV_HTTP_TIMEOUT=300
+
 REM Check if uv is installed
 uv --version >nul 2>&1
 if errorlevel 1 (
@@ -38,19 +41,17 @@ if errorlevel 1 (
 )
 echo ✅ API requirements installed
 
-REM Install current project
-echo 🔧 Installing current project in editable mode...
-uv pip install -e .
+REM Pre-install numpy and pandas to avoid timeout issues with OpenMIM
+echo 🔧 Pre-installing numpy and pandas...
+uv pip install numpy pandas
 if errorlevel 1 (
-    echo ❌ Failed to install current project
-    pause
-    exit /b 1
+    echo ⚠️ Warning: Failed to pre-install numpy/pandas, continuing anyway...
 )
-echo ✅ Project installed in editable mode
 
 REM Install OpenMIM and MMlab packages
 echo 🔧 Installing OpenMIM and MMlab packages...
-uv pip install openmim
+echo ⏱️ Using 5-minute timeout for large downloads...
+uv pip install --no-cache-dir openmim
 if errorlevel 1 (
     echo ❌ Failed to install OpenMIM
     pause
@@ -58,9 +59,10 @@ if errorlevel 1 (
 )
 echo ✅ OpenMIM installed
 
-REM Install MMlab packages using mim
+
+REM Install MMlab packages using mim (ensure mim CLI is available)
 echo 🔧 Installing MMlab packages...
-mim install mmcv-full mmdet mmpose
+uv run python -m mim install mmcv-full mmdet mmpose
 if errorlevel 1 (
     echo ❌ Failed to install MMlab packages
     pause
