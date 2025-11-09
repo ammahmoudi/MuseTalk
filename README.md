@@ -135,8 +135,64 @@ https://github.com/user-attachments/assets/b011ece9-a332-4bc1-b8b7-ef6e383d7bde
 - [ ] **always** welcome to submit issues and PRs to improve this repository! 😊
 
 
+# Project Structure
+
+The project follows a hybrid organization approach - docker-compose at root for convenience with organized subfolders:
+
+```
+MuseTalk/
+├── 📄 Root Level (Convenience)
+│   ├── docker-compose.yml          # Main docker compose
+│   ├── docker-compose.dev.yml      # Development overrides
+│   ├── docker-compose.prod.yml     # Production overrides
+│   ├── README.md                   # This file
+│   └── requirements.txt            # Python dependencies
+│
+├── 📚 docs/                        # Documentation
+│   ├── API_STREAMING_GUIDE.md
+│   ├── AVATAR_MEDIA_GUIDE.md
+│   ├── DOCKER_INTEGRATION_GUIDE.md
+│   ├── DOCKER_QUICKSTART.md
+│   ├── INSTALLATION.md
+│   ├── MOCK_API_GUIDE.md
+│   └── ...
+│
+├── 🐳 docker/                      # Docker files
+│   ├── Dockerfile.api              # Real API dockerfile
+│   ├── Dockerfile.mock             # Mock API dockerfile
+│   ├── Dockerfile.prod             # Production dockerfile
+│   └── entrypoints/                # Container entrypoints
+│       ├── musetalk-mock-dev.sh
+│       ├── musetalk-real-dev.sh
+│       └── ...
+│
+├── 🛠️ scripts/                     # Utility scripts
+│   ├── inference.py                # Inference script
+│   ├── realtime_inference.py       # Real-time inference
+│   ├── preprocess.py               # Data preprocessing
+│   ├── install_dependencies.sh     # Setup script
+│   ├── download_weights.sh         # Model download script
+│   └── ...
+│
+├── 🧪 tests/                       # Test scripts
+│   ├── test_avatar_prep.py
+│   ├── test_client.py
+│   ├── test_streaming_api.py
+│   └── ...
+│
+├── 🎭 api/                         # API implementation
+│   ├── musetalk_native_api.py      # Real API with GPU
+│   ├── mock_api.py                 # Mock API (no GPU)
+│   ├── main.py                     # Simplified API
+│   └── ...
+│
+├── 🧠 musetalk/                    # Core MuseTalk library
+├── 🎨 assets/                      # Demo assets and figures
+├── ⚙️ configs/                     # Configuration files
+└── 📦 models/                      # Model weights directory
+```
+
 # Getting Started
-We provide a detailed tutorial about the installation and the basic usage of MuseTalk for new users:
 
 ## Third party integration
 Thanks for the third-party integration, which makes installation and use more convenient for everyone.
@@ -144,57 +200,133 @@ We also hope you note that we have not verified, maintained, or updated third-pa
 
 ### [ComfyUI](https://github.com/chaojie/ComfyUI-MuseTalk)
 
-## Installation
-To prepare the Python environment and install additional packages such as opencv, diffusers, mmcv, etc., please follow the steps below:
+## Quick Start
 
-## Installation
+### 🐳 Running with Docker
 
-### Docker Setup (Recommended)
-
-For easy setup with the Humaan ecosystem, use Docker:
-
+#### Option 1: Mock API (No GPU - Easiest)
 ```bash
-# Clone the repositories
-git clone https://github.com/Rastarmaan/Humaan-back.git
-git clone https://github.com/Rastarmaan/Humaan-front.git  
-git clone https://github.com/ammahmoudi/MuseTalk.git
-
-# Production mode
-cd Humaan-back/docker
+# Start mock API (runs by default)
 docker-compose up -d
 
-# Development mode (localhost URLs)
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# Access at: http://localhost:8001
 ```
 
-#### Environment Configuration
-- **Production**: Uses `.env` with production URLs
-- **Development**: Uses `.env.dev` with localhost URLs
+#### Option 2: Development Mode (with hot reload)
+```bash
+# Mock API + Redis with live code reload
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
-| Mode | MuseTalk Real API | MuseTalk Mock API |
-|------|-------------------|-------------------|
-| Production | <https://ai-icon.rastar.dev> | <https://ai-icon.rastar.dev/mock> |
-| Development | <http://localhost:8000> | <http://localhost:8001> |
+# Access at: http://localhost:8001
+```
 
-### Manual Installation
+#### Option 3: Real API with GPU
+```bash
+# Requires NVIDIA GPU and drivers
+docker-compose --profile gpu up -d
+
+# Access at: http://localhost:8000
+```
+
+#### Option 4: Production (all services)
+```bash
+# Real API + Nginx + Redis + File Server
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Access via nginx at: http://localhost:80
+```
+
+### 💻 Running Locally (Without Docker)
+
+#### 1. Setup Environment
+```bash
+# Install dependencies
+bash scripts/install_dependencies.sh      # Linux/Mac
+scripts\install_dependencies.bat          # Windows
+
+# Download model weights
+bash scripts/download_weights.sh          # Linux/Mac
+scripts\download_weights.bat              # Windows
+```
+
+#### 2. Run the API
+
+**Important:** Always use `uv run` from the project root directory.
+
+**Mock API (no GPU):**
+```bash
+uv run python api/mock_api.py
+# Access at: http://localhost:8001
+```
+
+**Real API (requires GPU):**
+```bash
+uv run python api/musetalk_native_api.py
+# Access at: http://localhost:8000
+```
+
+**Simplified API:**
+```bash
+uv run python main.py
+# Access at: http://localhost:8000
+```
+
+#### 3. Run Inference Scripts
+```bash
+# Standard inference
+uv run python scripts/inference.py
+
+# Real-time inference
+uv run python scripts/realtime_inference.py
+```
+
+### 🔍 Quick Reference
+
+| Method | Command | GPU Required | Best For |
+|--------|---------|--------------|----------|
+| Docker Mock | `docker-compose up -d` | ❌ No | Quick testing |
+| Docker Dev | `docker-compose -f docker-compose.yml -f docker-compose.dev.yml up` | ❌ No | Development |
+| Docker GPU | `docker-compose --profile gpu up -d` | ✅ Yes | Production API |
+| Local Mock | `uv run python api/mock_api.py` | ❌ No | Local testing |
+| Local Real | `uv run python api/musetalk_native_api.py` | ✅ Yes | Local development |
+
+**Recommendation:** Start with `docker-compose up -d` (mock API) for testing.
+
+**Important Notes:**
+- Always use `uv run` when running Python scripts locally
+- Run commands from the project root directory
+- PyTorch 2.6+ compatibility fixes included for `torch.load`
+
+## Installation
 
 ### Build environment
-We recommend Python 3.10 and CUDA 11.7. Set up your environment as follows:
+We recommend Python 3.10. Set up your environment as follows:
 
 ```shell
 conda create -n MuseTalk python==3.10
 conda activate MuseTalk
 ```
 
-### Install PyTorch 2.0.1
-Choose one of the following installation methods:
+### Install PyTorch with GPU Support
+Install PyTorch based on your CUDA version. Check your CUDA version with `nvidia-smi`:
 
 ```shell
-# Option 1: Using pip
-pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+# For CUDA 13.0 (RTX 40 series - 4060, 4070, 4090, etc.)
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 
-# Option 2: Using conda
-conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+# For CUDA 12.4
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# For CUDA 11.8
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# For CPU only (no GPU)
+pip3 install torch torchvision
+```
+
+**Verify GPU is detected:**
+```shell
+python -c "import torch; print('CUDA Available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'No GPU')"
 ```
 
 ### Install Dependencies
@@ -238,13 +370,13 @@ We provide two scripts for automatic downloading:
 
 For Linux:
 ```bash
-sh ./download_weights.sh
+sh ./scripts/download_weights.sh
 ```
 
 For Windows:
 ```batch
 # Run the script
-download_weights.bat
+scripts\download_weights.bat
 ```
 
 #### Option 2: Manual Download

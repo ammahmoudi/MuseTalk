@@ -16,6 +16,9 @@ pydantic==2.5.0
 # HTTP client
 httpx==0.25.2
 
+# Config files
+pyyaml==6.0.1
+
 # Image and video processing
 opencv-python==4.9.0.80
 imageio[ffmpeg]==2.34.0

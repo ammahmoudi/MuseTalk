@@ -1,19 +1,20 @@
 # 🚀 MuseTalk API Services Docker Compose
 # Supports both real MuseTalk API and Mock API for development/testing
+version: '3.8'
 
 services:
   # Real MuseTalk API with GPU support
   musetalk-api:
     build: 
-      context: .
-      dockerfile: docker/Dockerfile.prod
+      context: ..
+      dockerfile: api/Dockerfile.prod
       target: ${MUSETALK_BUILD_TARGET:-runtime}
     container_name: musetalk-api
     ports:
       - "${MUSETALK_API_PORT:-8000}:8000"
     volumes:
-      - ./models:/app/models:ro
-      - ./data:/app/data:ro
+      - ../models:/app/models:ro
+      - ../data:/app/data:ro
       - musetalk_temp:/app/temp
       - musetalk_results:/app/results
     environment:
@@ -42,14 +43,14 @@ services:
   # Mock API for development/testing (no GPU required)
   musetalk-mock-api:
     build:
-      context: .
-      dockerfile: docker/Dockerfile.mock
+      context: ..
+      dockerfile: api/Dockerfile.mock
     container_name: musetalk-mock-api
     ports:
       - "${MOCK_API_PORT:-8001}:8001"
     volumes:
       - mock_temp:/app/temp
-      - ./test_assets:/app/test_assets:ro
+      - ../test_assets:/app/test_assets:ro
     environment:
       - PYTHONPATH=/app
       - BASE_URL=${MOCK_BASE_URL:-http://localhost:8001}
@@ -62,7 +63,7 @@ services:
       start_period: 30s
     networks:
       - musetalk-network
-    # No profiles - runs by default for easy testing
+    profiles: ["dev", "mock", "testing", "full"]
 
   # Redis for caching and session management
   redis:
@@ -91,8 +92,8 @@ services:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - musetalk-api
@@ -115,7 +116,7 @@ services:
     volumes:
       - musetalk_results:/usr/share/nginx/html/results:ro
       - musetalk_temp:/usr/share/nginx/html/temp:ro
-      - ./nginx/file-server.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/file-server.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
     networks:
       - musetalk-network

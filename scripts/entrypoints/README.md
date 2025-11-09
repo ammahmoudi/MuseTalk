@@ -39,10 +39,15 @@ This directory contains Docker entrypoint scripts for MuseTalk services.
 These entrypoints should be copied into the Docker container during build and used as:
 
 ```dockerfile
-COPY docker/entrypoints/musetalk-mock-dev.sh /app/entrypoint.sh
+COPY scripts/entrypoints/musetalk-mock-dev.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 CMD ["/app/entrypoint.sh"]
 ```
+
+## Location
+
+**Note:** This folder was moved from `docker/entrypoints/` to `scripts/entrypoints/` for better organization.
+All Docker-related scripts that are part of the application logic are now located in the scripts folder.
 
 ## Requirements
 

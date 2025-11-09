@@ -803,7 +803,7 @@ async def run_realtime_inference(task_id: str):
             raise Exception("Real-time materials not found. Avatar needs re-preparation.")
         
         # Load materials
-        input_latent_list_cycle = torch.load(materials_dir / "latents.pt")
+        input_latent_list_cycle = torch.load(materials_dir / "latents.pt", weights_only=False)
         
         with open(materials_dir / "masks.pkl", 'rb') as f:
             mask_list_cycle = pickle.load(f)

@@ -109,15 +109,16 @@ done
 echo
 # Download models using official script
 echo "📥 Downloading MuseTalk models..."
-if [ -f "download_weights.sh" ]; then
-    chmod +x download_weights.sh
-    if ./download_weights.sh; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/download_weights.sh" ]; then
+    chmod +x "$SCRIPT_DIR/download_weights.sh"
+    if "$SCRIPT_DIR/download_weights.sh"; then
         echo "✅ Models downloaded successfully!"
     else
         echo "⚠️ Some models may have failed to download. Check manually if needed."
     fi
 else
-    echo "⚠️ download_weights.sh not found. Please download models manually."
+    echo "⚠️ download_weights.sh not found in scripts folder. Please download models manually."
 fi
 
 echo

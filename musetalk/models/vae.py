@@ -20,22 +20,12 @@ class VAE():
         :param resized_img: The size to which images are resized.
         :param use_float16: Whether to use float16 precision.
         """
+    def __init__(self, model_path="models/sd-vae", subfolder=None, cache_dir=None, device="cuda"):
+        self.device = device
         self.model_path = model_path
+        self.subfolder = subfolder
+        self.cache_dir = cache_dir
         self.vae = AutoencoderKL.from_pretrained(self.model_path)
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.vae.to(self.device)
-
-        if use_float16:
-            self.vae = self.vae.half()
-            self._use_float16 = True
-        else:
-            self._use_float16 = False
-
-        self.scaling_factor = self.vae.config.scaling_factor
-        self.transform = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        self._resized_img = resized_img
-        self._mask_tensor = self.get_mask_tensor()
         
     def get_mask_tensor(self):
         """
