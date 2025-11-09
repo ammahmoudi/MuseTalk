@@ -77,9 +77,9 @@ echo "⏱️ Using 5-minute timeout for large downloads..."
 if uv pip install --no-cache-dir -U openmim; then
     echo "✅ OpenMIM installed"
     
-    # Install MMlab packages using mim with correct versions
+    # Install MMlab packages using mim command directly
     echo "🔧 Installing mmengine..."
-    if uv run python -m mim install mmengine; then
+    if mim install mmengine; then
         echo "✅ mmengine installed"
     else
         echo "❌ Failed to install mmengine"
@@ -87,7 +87,7 @@ if uv pip install --no-cache-dir -U openmim; then
     fi
     
     echo "🔧 Installing MMlab packages..."
-    if uv run python -m mim install "mmcv==2.0.1" "mmdet==3.1.0" "mmpose==1.1.0"; then
+    if mim install "mmcv==2.0.1" "mmdet==3.1.0" "mmpose==1.1.0"; then
         echo "✅ MMlab packages installed"
     else
         echo "❌ Failed to install MMlab packages"
