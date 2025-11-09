@@ -27,6 +27,9 @@ class VAE():
         self.cache_dir = cache_dir
         self.vae = AutoencoderKL.from_pretrained(self.model_path)
         
+        # Set scaling factor - standard value for SD VAE
+        self.scaling_factor = 0.18215
+        
     def get_mask_tensor(self):
         """
         Creates a mask tensor for image processing.

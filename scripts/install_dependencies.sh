@@ -100,7 +100,7 @@ fi
 
 # Install additional development dependencies
 echo "🔧 Installing additional dependencies..."
-if uv pip install aiohttp websockets pytest black; then
+if uv pip install aiohttp websockets pytest black GPUtil psutil; then
     echo "✅ Additional dependencies installed"
 else
     echo "❌ Failed to install additional dependencies"
